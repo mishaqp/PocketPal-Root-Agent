@@ -1,0 +1,53 @@
+name: Build PocketPal Root Agent APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout build overlay
+        uses: actions/checkout@v4
+
+      - name: Checkout upstream PocketPal
+        uses: actions/checkout@v4
+        with:
+          repository: a-ghorbani/pocketpal-ai
+          path: app
+          fetch-depth: 1
+
+      - name: Apply Root Agent overlay
+        run: cp -a overlay/. app/
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: yarn
+          cache-dependency-path: app/yarn.lock
+
+      - name: Install JavaScript dependencies
+        working-directory: app
+        run: yarn install --frozen-lockfile --non-interactive
+
+      - name: Build release APK
+        working-directory: app/android
+        run: ./gradlew assembleProdRelease --no-daemon --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PocketPal-Root-Agent-apk
+          path: app/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
