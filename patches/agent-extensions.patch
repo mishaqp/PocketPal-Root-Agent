@@ -1,0 +1,124 @@
+diff --git a/src/hooks/useChatSession.ts b/src/hooks/useChatSession.ts
+--- a/src/hooks/useChatSession.ts
++++ b/src/hooks/useChatSession.ts
+@@ -15,6 +15,7 @@ import {
+   ttsStore,
+   uiStore,
+ } from '../store';
++import {extensionStore} from '../store/ExtensionStore';
+ import {resolveReasoningCapability} from '../utils/reasoningCapability';
+ 
+ import {MessageType, ModelOrigin, User} from '../utils/types';
+@@ -34,6 +35,7 @@ import {
+ } from '../utils/completionTypes';
+ import {
+   collectSystemPromptFragments,
++  registerDefaultTalents,
+   seedReadUrlAllowlist,
+   talentRegistry,
+ } from '../services/talents';
+@@ -61,6 +63,7 @@ const prepareCompletion = async ({
+   isMultimodalEnabled,
+   l10n,
+   currentMessages,
++  palId,
+ }: {
+   imageUris: string[];
+   message: MessageType.PartialText;
+@@ -71,6 +74,7 @@ const prepareCompletion = async ({
+   isMultimodalEnabled: boolean;
+   l10n: any;
+   currentMessages: MessageType.Any[];
++  palId?: string;
+ }) => {
+   const sessionCompletionSettings =
+     await chatSessionStore.getCurrentCompletionSettings();
+@@ -139,6 +143,7 @@ const prepareCompletion = async ({
+     now: new Date(),
+     maxToolTurns: DEFAULT_MAX_TURNS,
+   });
++  systemPromptFragments.push(...extensionStore.promptFragments(palId));
+ 
+   const messages = assembleMessages(systemMessages, systemPromptFragments, [
+     ...chatMessages,
+@@ -567,6 +572,7 @@ export const useChatSession = (
+       pal,
+       model: modelStore.activeModel,
+     });
++    extensionStore.setActivePalId(pal?.id);
+ 
+     const {cleanCompletionParams, messageInfo} = await prepareCompletion({
+       imageUris: imageUris || [],
+@@ -578,6 +584,7 @@ export const useChatSession = (
+       isMultimodalEnabled,
+       l10n,
+       currentMessages,
++      palId: pal?.id,
+     });
+ 
+     currentMessageInfo.current = messageInfo;
+@@ -634,6 +641,10 @@ export const useChatSession = (
+     }
+ 
+     try {
++      // Ensure every built-in and fork talent is registered before dispatch.
++      // This is idempotent and closes the async PalStore initialization race.
++      registerDefaultTalents();
++
+       const events = runAgent({
+         engine,
+         initialParams: cleanCompletionParams as ApiCompletionParams,
+diff --git a/src/screens/SettingsScreen/SettingsScreen.tsx b/src/screens/SettingsScreen/SettingsScreen.tsx
+--- a/src/screens/SettingsScreen/SettingsScreen.tsx
++++ b/src/screens/SettingsScreen/SettingsScreen.tsx
+@@ -44,6 +44,7 @@ import {
+   SearchProviderKeySheet,
+   InputSlider,
+ } from '../../components';
++import {AgentExtensionsSheet} from '../../components/AgentExtensionsSheet';
+ 
+ import {useTheme} from '../../hooks';
+ 
+@@ -103,6 +104,7 @@ export const SettingsScreen: React.FC = observer(() => {
+     y: number;
+   }>({x: 0, y: 0});
+   const [showSearchKeySheet, setShowSearchKeySheet] = useState(false);
++  const [showAgentExtensions, setShowAgentExtensions] = useState(false);
+   const searchProviderButtonRef = useRef<View>(null);
+   const [gpuSupported, setGpuSupported] = useState(false);
+   const [draftModelAnchor, setDraftModelAnchor] = useState<{
+@@ -1164,6 +1166,23 @@ export const SettingsScreen: React.FC = observer(() => {
+             </Card.Content>
+           </Card>
+ 
++          {/* Agent Extensions */}
++          <Card elevation={0} style={styles.card} testID="agent-extensions-card">
++            <Card.Title title={(l10n.settings as any).agentExtensions.title} />
++            <Card.Content>
++              <Text variant="labelSmall" style={styles.textDescription}>
++                {(l10n.settings as any).agentExtensions.description}
++              </Text>
++              <Button
++                testID="open-agent-extensions"
++                mode="outlined"
++                style={styles.menuButton}
++                onPress={() => setShowAgentExtensions(true)}>
++                {(l10n.settings as any).agentExtensions.openButton}
++              </Button>
++            </Card.Content>
++          </Card>
++
+           {/* Internet Search */}
+           <Card elevation={0} style={styles.card} testID="internet-search-card">
+             <Card.Title title={l10n.settings.internetSearch.title} />
+@@ -1526,6 +1545,10 @@ export const SettingsScreen: React.FC = observer(() => {
+         providerLabel={activeSearchProvider?.label ?? activeSearchProviderId}
+         onDismiss={() => setShowSearchKeySheet(false)}
+       />
++      <AgentExtensionsSheet
++        isVisible={showAgentExtensions}
++        onDismiss={() => setShowAgentExtensions(false)}
++      />
+     </SafeAreaView>
+   );
+ });

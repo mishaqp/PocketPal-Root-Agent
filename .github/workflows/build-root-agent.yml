@@ -18,11 +18,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: a-ghorbani/pocketpal-ai
+          # Keep the overlay reproducible. Update this only after rebasing and tests.
+          ref: 5e0f72b599886f77ab5b0c5c4074347b6f4a1262
           path: app
           fetch-depth: 1
 
       - name: Apply Root Agent overlay
         run: cp -a overlay/. app/
+
+      - name: Apply provider presets
+        run: git -C app apply --check ../patches/deepseek-preset.patch && git -C app apply ../patches/deepseek-preset.patch
+
+      - name: Apply agent extensions integration
+        run: git -C app apply --check ../patches/agent-extensions.patch && git -C app apply ../patches/agent-extensions.patch
 
       - name: Set up Java
         uses: actions/setup-java@v4

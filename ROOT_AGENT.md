@@ -16,6 +16,19 @@ There is intentionally no arbitrary shell endpoint, `eval`, or user string passe
 operations. Shizuku support is the next backend and will use the same TypeScript
 talent interface.
 
+## Agent extensions
+
+The fork also adds local-only extension storage:
+
+- long-term global memory plus Pal-scoped memory;
+- prompt-only `SKILL.md` imports with enable/disable controls;
+- declarative JSON plugins that route only to explicitly listed built-in talents;
+- `memory` and `agent_extensions` talents, selectable per Pal.
+
+Imported plugins never execute JavaScript, native code, or shell commands. The
+`android_system` talent is explicitly rejected in plugin manifests, so root access
+cannot be inherited indirectly by an imported extension.
+
 ## Using the talent
 
 Create or edit a Pal and enable the `android_system` talent. The local model must

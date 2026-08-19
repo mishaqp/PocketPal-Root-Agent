@@ -113,6 +113,29 @@
     "importButton": "Import",
     "importSuccess": "Successfully imported {{count}} chat session(s).",
     "importError": "Failed to import chat sessions. Please check the file format.",
+    "agentExtensions": {
+      "title": "Agent extensions",
+      "description": "Manage long-term memory, SKILL.md files, and permission-limited plugins.",
+      "openButton": "Manage extensions",
+      "memoryTitle": "Long-term memory",
+      "memoryDescription": "Stable facts and preferences injected into every chat. Do not store secrets.",
+      "memoryPlaceholder": "Example: Preferred language: Russian",
+      "saveMemory": "Save memory",
+      "skillsTitle": "Skills",
+      "skillsDescription": "Imported SKILL.md instructions. Enabled skills are added to the system prompt.",
+      "importSkill": "Import SKILL.md",
+      "noSkills": "No skills installed.",
+      "pluginsTitle": "Plugins",
+      "pluginsDescription": "JSON manifests that may call only listed built-in talents.",
+      "importPlugin": "Import JSON",
+      "noPlugins": "No plugins installed.",
+      "securityNote": "Plugins cannot execute arbitrary JavaScript or shell commands and cannot request android_system root access.",
+      "skillImportedTitle": "Skill imported",
+      "skillImportedMessage": "The skill is installed and enabled.",
+      "pluginImportedTitle": "Plugin imported",
+      "pluginImportedMessage": "The plugin manifest is installed and enabled.",
+      "importErrorTitle": "Import failed"
+    },
     "internetSearch": {
       "title": "Internet Search",
       "description": "Let Pals search the web with their own tools. Bring your own API key — PocketPal never holds your keys or routes your queries.",
@@ -172,6 +195,7 @@
     "serverUrlInvalid": "Invalid URL format",
     "serverUrlHttpWarning": "iOS requires HTTPS for non-local servers. Use https:// or a local network address.",
     "addRemoteModel": "Add Remote Model",
+    "providerPresets": "Provider presets",
     "yourServers": "Your Servers",
     "orConnectNewServer": "or connect new server",
     "selectModel": "Select Model",
@@ -835,7 +859,9 @@
         "datetime": "Date & time",
         "web_search": "Web search",
         "read_url": "Read web page",
-        "android_system": "Android system"
+        "android_system": "Android system",
+        "memory": "Long-term memory",
+        "agent_extensions": "Agent extensions"
       },
       "talentDescriptions": {
         "render_html": "Render HTML documents inline in chat",
@@ -843,7 +869,9 @@
         "datetime": "Get the current date and time",
         "web_search": "Search the internet for current information (requires API key in Settings)",
         "read_url": "Read the full content of a web page (requires API key in Settings)",
-        "android_system": "Read device status, list packages, and launch apps through fixed safe operations"
+        "android_system": "Read device status, list packages, and launch apps through fixed safe operations",
+        "memory": "Read and update persistent global or Pal-specific memory",
+        "agent_extensions": "Inspect skills and run permission-limited plugins"
       },
       "greeting": {
         "sectionLabel": "Greeting",
