@@ -4,6 +4,8 @@ import {DatetimeEngine} from './DatetimeEngine';
 import {WebSearchEngine} from './WebSearchEngine';
 import {ReadUrlEngine} from './ReadUrlEngine';
 import {AndroidSystemEngine} from './AndroidSystemEngine';
+import {MemoryEngine} from './MemoryEngine';
+import {AgentExtensionsEngine} from './AgentExtensionsEngine';
 import {talentRegistry} from './TalentRegistry';
 import type {SearchAccess} from './searchAccess';
 import type {ToolDefinition, SystemPromptContext} from './types';
@@ -19,6 +21,8 @@ export {DatetimeEngine} from './DatetimeEngine';
 export {WebSearchEngine} from './WebSearchEngine';
 export {ReadUrlEngine} from './ReadUrlEngine';
 export {AndroidSystemEngine} from './AndroidSystemEngine';
+export {MemoryEngine} from './MemoryEngine';
+export {AgentExtensionsEngine} from './AgentExtensionsEngine';
 export type {SearchAccess} from './searchAccess';
 // Deliberately narrow: the raw allowlist writers stay module-internal so all
 // writes happen inside services/talents (seed at run start, WebSearchEngine
@@ -65,6 +69,8 @@ export function registerDefaultTalents(): void {
   talentRegistry.register(new WebSearchEngine(searchAccess));
   talentRegistry.register(new ReadUrlEngine(searchAccess));
   talentRegistry.register(new AndroidSystemEngine());
+  talentRegistry.register(new MemoryEngine());
+  talentRegistry.register(new AgentExtensionsEngine());
   registered = true;
 }
 

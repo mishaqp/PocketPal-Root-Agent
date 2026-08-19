@@ -1,0 +1,84 @@
+diff --git a/src/components/RemoteModelSheet/RemoteModelSheet.tsx b/src/components/RemoteModelSheet/RemoteModelSheet.tsx
+--- a/src/components/RemoteModelSheet/RemoteModelSheet.tsx
++++ b/src/components/RemoteModelSheet/RemoteModelSheet.tsx
+@@ -261,6 +261,19 @@ export const RemoteModelSheet: React.FC<RemoteModelSheetProps> = observer(
+       setUrlError('');
+     }, []);
+ 
++    const handleDeepSeekPreset = useCallback(() => {
++      setSelectedServerId(null);
++      setUrl('https://api.deepseek.com');
++      setServerName('DeepSeek');
++      setServerType('OpenAI');
++      setApiKey('');
++      apiKeyRef.current = '';
++      setProbeResult(null);
++      setAvailableModels([]);
++      setSelectedModelId(null);
++      setUrlError('');
++    }, []);
++
+     // Save / add model
+     const handleAddModel = useCallback(async () => {
+       if (!selectedModelId) {
+@@ -413,6 +426,22 @@ export const RemoteModelSheet: React.FC<RemoteModelSheetProps> = observer(
+             </View>
+           )}
+ 
++          {!selectedServerId && (
++            <View style={styles.chipsSection}>
++              <Text style={styles.chipsSectionLabel}>
++                {l10n.settings.providerPresets}
++              </Text>
++              <View style={styles.chipsRow}>
++                <Chip
++                  testID="provider-preset-deepseek"
++                  selected={url === 'https://api.deepseek.com'}
++                  onPress={handleDeepSeekPreset}>
++                  DeepSeek
++                </Chip>
++              </View>
++            </View>
++          )}
++
+           {/* URL Input - only show when not using a known server chip */}
+           {!selectedServerId && (
+             <>
+@@ -421,7 +450,7 @@ export const RemoteModelSheet: React.FC<RemoteModelSheetProps> = observer(
+                 <TextInput
+                   testID="remote-url-input"
+                   label={l10n.settings.serverUrl}
+-                  defaultValue={url}
++                  value={url}
+                   onChangeText={text => {
+                     setUrl(text);
+                     if (urlError) {
+diff --git a/src/components/RemoteModelSheet/__tests__/RemoteModelSheet.test.tsx b/src/components/RemoteModelSheet/__tests__/RemoteModelSheet.test.tsx
+--- a/src/components/RemoteModelSheet/__tests__/RemoteModelSheet.test.tsx
++++ b/src/components/RemoteModelSheet/__tests__/RemoteModelSheet.test.tsx
+@@ -77,6 +77,25 @@ describe('RemoteModelSheet', () => {
+     expect(getByTestId('remote-url-input')).toBeTruthy();
+   });
+ 
++  it('fills the DeepSeek provider preset', async () => {
++    const {getByTestId} = render(
++      <RemoteModelSheet isVisible={true} onDismiss={jest.fn()} />,
++    );
++
++    fireEvent.press(getByTestId('provider-preset-deepseek'));
++
++    expect(getByTestId('remote-url-input').props.value).toBe(
++      'https://api.deepseek.com',
++    );
++    await waitFor(() => {
++      expect(mockedFetchModelsWithHeaders).toHaveBeenCalledWith(
++        'https://api.deepseek.com',
++        undefined,
++        undefined,
++      );
++    });
++  });
++
+   it('renders the Add Model button', () => {
+     const {getByTestId} = render(
+       <RemoteModelSheet isVisible={true} onDismiss={jest.fn()} />,
