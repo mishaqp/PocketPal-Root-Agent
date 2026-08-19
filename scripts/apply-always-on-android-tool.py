@@ -6,6 +6,7 @@ root = Path(sys.argv[1] if len(sys.argv) > 1 else "app")
 
 store_path = root / "src/store/ChatSessionStore.ts"
 hook_path = root / "src/hooks/useChatSession.ts"
+android_engine_path = root / "src/services/talents/AndroidSystemEngine.ts"
 
 # 1) Always expose android_system in the request's OpenAI-compatible tools array,
 # even when the user is in a plain chat, an old session, or a Pal whose pact did
@@ -30,4 +31,14 @@ if needle not in hook:
 hook = hook.replace(needle, replacement, 1)
 hook_path.write_text(hook, encoding="utf-8")
 
-print("Applied always-on android_system tool wiring")
+# 3) Make the runtime identity explicit in the system prompt. Models should not
+# fall back to the generic "I am only text" answer when the native tool is present.
+engine = android_engine_path.read_text(encoding="utf-8")
+needle = """      'ANDROID DEVICE RULES:',\n      '- When the user asks about the current phone state, installed apps, battery, storage, brightness, or root status, call android_system instead of guessing.',\n"""
+replacement = """      'ANDROID DEVICE RUNTIME:',\n      '- You are running inside PocketPal Root Agent on the user\\'s Android phone. android_system is a real native device tool supplied by the app runtime.',\n      '- Do not claim that you have only text access, that Android tools are unavailable, or that the user must run ADB/shell manually while android_system is present.',\n      '- When the user asks about the current phone state, installed apps, battery, storage, brightness, or root status, call android_system instead of guessing.',\n"""
+if needle not in engine:
+    raise SystemExit("AndroidSystemEngine prompt anchor not found; overlay changed")
+engine = engine.replace(needle, replacement, 1)
+android_engine_path.write_text(engine, encoding="utf-8")
+
+print("Applied always-on android_system tool wiring and Android runtime bootstrap")
