@@ -34,6 +34,9 @@ jobs:
       - name: Apply agent extensions integration
         run: git -C app apply --check ../patches/agent-extensions.patch && git -C app apply ../patches/agent-extensions.patch
 
+      - name: Apply DeepSeek DSML and long-agent fixes
+        run: git -C app apply --check ../patches/dsml-agent-loop.patch && git -C app apply ../patches/dsml-agent-loop.patch
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
