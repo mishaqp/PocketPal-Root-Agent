@@ -29,7 +29,7 @@ diff --git a/src/api/openai.ts b/src/api/openai.ts
              reasoning_content: fullReasoningContent || undefined,
              tool_calls: toolCallsDelta,
            });
-@@ -942,9 +947,17 @@ export async function streamChatCompletion(
+@@ -942,9 +947,19 @@ export async function streamChatCompletion(
        }
  
        // Mirror llama.rn's shape: undefined when no tool_calls were
@@ -43,10 +43,12 @@ diff --git a/src/api/openai.ts b/src/api/openai.ts
 +        ? []
 +        : parseDsmlToolCalls(fullContent);
 +      const finalToolCalls =
-+        structuredToolCalls ?? (dsmlToolCalls.length > 0 ? dsmlToolCalls : undefined);
-+      const finalContent = dsmlToolCalls.length > 0
-+        ? stripDsmlToolCallsForDisplay(fullContent)
-+        : fullContent;
++        structuredToolCalls ??
++        (dsmlToolCalls.length > 0 ? dsmlToolCalls : undefined);
++      const finalContent =
++        dsmlToolCalls.length > 0
++          ? stripDsmlToolCallsForDisplay(fullContent)
++          : fullContent;
  
        // Build result
        if (signal?.aborted) {
@@ -58,7 +60,7 @@ diff --git a/src/api/openai.ts b/src/api/openai.ts
            reasoning_content: fullReasoningContent || undefined,
            tool_calls: finalToolCalls,
            tokens_predicted: tokensPredicted,
-@@ -956,8 +969,8 @@ export async function streamChatCompletion(
+@@ -956,8 +971,8 @@ export async function streamChatCompletion(
        }
  
        const result: CompletionResult = {
