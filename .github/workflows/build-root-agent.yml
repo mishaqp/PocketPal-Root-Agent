@@ -37,6 +37,9 @@ jobs:
       - name: Apply DeepSeek DSML and long-agent fixes
         run: python3 scripts/apply-dsml-agent-fix.py app
 
+      - name: Make Android control always available
+        run: python3 scripts/apply-always-on-android-tool.py app
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
