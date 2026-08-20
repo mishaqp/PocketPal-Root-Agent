@@ -49,6 +49,9 @@ jobs:
       - name: Apply Root Agent runtime health lifecycle
         run: python3 scripts/apply-root-agent-runtime.py app
 
+      - name: Apply agent continuity and model persistence
+        run: python3 scripts/apply-agent-continuity.py app
+
       - name: Apply Root Agent home UI
         run: python3 scripts/apply-root-agent-ui.py app
 
