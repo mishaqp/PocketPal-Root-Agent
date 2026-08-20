@@ -166,8 +166,10 @@ class TermuxBridgeModule(private val context: ReactApplicationContext) :
   }
 
   private fun scheduleForegroundRecovery(executionId: Int, commandIntent: Intent): Boolean {
-    val callerActivity = currentActivity ?: return false
-    if (callerActivity.isFinishing || callerActivity.isDestroyed) return false
+    val callerActivity = context.getCurrentActivity() ?: return false
+    if (callerActivity.isFinishing || callerActivity.isDestroyed || !callerActivity.hasWindowFocus()) {
+      return false
+    }
     val launchTermux = context.packageManager.getLaunchIntentForPackage(TERMUX_PACKAGE) ?: return false
 
     TermuxCommandBroker.markForegroundRecovery(executionId)
