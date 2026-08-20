@@ -23,6 +23,7 @@ export class TermuxEngine implements TalentEngine {
       '- exec runs one user-space executable with an argv array; never invent stdout, stderr, or exit codes.',
       '- Do not use Termux to obtain Android root. Privileged Android operations belong to android_system.',
       '- linux_detect checks for PRoot-Distro. linux_exec runs a structured command inside a detected PRoot container.',
+      '- linux_exec workdir is applied inside the guest with PRoot-Distro --work-dir; do not emulate it with shell cd.',
       '- A PRoot container reporting uid=0 is not proof of Android uid=0.',
     ].join('\n');
   }
@@ -78,9 +79,15 @@ export class TermuxEngine implements TalentEngine {
         const distro = this.distro(args.distro);
         const executable = this.innerExecutable(args.executable);
         const argv = this.argv(args.args);
+        const workdir = this.linuxWorkdir(args.workdir);
+        const loginArgs = ['login', distro];
+        if (workdir) {
+          loginArgs.push('--work-dir', workdir);
+        }
+        loginArgs.push('--', executable, ...argv);
         const result = await termuxControl.runCommand(
           'proot-distro',
-          ['login', distro, '--', executable, ...argv],
+          loginArgs,
           {timeoutMs: this.timeout(args.timeoutMs)},
         );
         return this.commandResult(`linux:${distro}:${executable}`, result);
@@ -125,7 +132,7 @@ export class TermuxEngine implements TalentEngine {
             workdir: {
               type: 'string',
               description:
-                'Optional Termux work directory for exec. Use ~/..., $PREFIX/..., /sdcard/... or /storage/emulated/0/...',
+                'Optional working directory. For exec use ~/..., $PREFIX/..., /sdcard/... or /storage/emulated/0/...; for linux_exec use an absolute guest path such as /root/project.',
             },
             stdin: {
               type: 'string',
@@ -184,6 +191,24 @@ export class TermuxEngine implements TalentEngine {
 
   private optionalString(value: unknown): string | undefined {
     return typeof value === 'string' && value.length > 0 ? value : undefined;
+  }
+
+  private linuxWorkdir(value: unknown): string | undefined {
+    if (value == null || value === '') {
+      return undefined;
+    }
+    if (typeof value !== 'string') {
+      throw new Error('linux workdir must be an absolute guest path');
+    }
+    const workdir = value.trim();
+    if (!workdir.startsWith('/') || workdir.length > 512 || workdir.includes('\u0000')) {
+      throw new Error('linux workdir must be an absolute guest path up to 512 characters');
+    }
+    const parts = workdir.split('/');
+    if (parts.includes('..')) {
+      throw new Error('linux workdir must not contain parent traversal');
+    }
+    return workdir;
   }
 
   private timeout(value: unknown): number {
