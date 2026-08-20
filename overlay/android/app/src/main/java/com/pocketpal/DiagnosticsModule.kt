@@ -1,6 +1,7 @@
 package com.pocketpal
 
 import android.content.ContentValues
+import android.content.pm.PackageInfo
 import android.os.Build
 import android.os.Environment
 import android.os.Process
@@ -125,7 +126,7 @@ class DiagnosticsModule(private val context: ReactApplicationContext) :
           .put("schema", 1)
           .put("packageName", packageName)
           .put("versionName", packageInfo.versionName ?: "")
-          .put("versionCode", if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) packageInfo.longVersionCode else @Suppress("DEPRECATION") packageInfo.versionCode.toLong())
+          .put("versionCode", versionCode(packageInfo))
           .put("captureStartedAt", start)
           .put("captureEndedAt", end)
           .put("captureDurationMs", (end - start).coerceAtLeast(0L))
@@ -168,6 +169,10 @@ class DiagnosticsModule(private val context: ReactApplicationContext) :
     if (started > 0L) putDouble("startedAt", started.toDouble()) else putNull("startedAt")
     putString("lastExport", prefs.getString(KEY_LAST_EXPORT, "") ?: "")
   }
+
+  @Suppress("DEPRECATION")
+  private fun versionCode(info: PackageInfo): Long =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else info.versionCode.toLong()
 
   private fun collectLogcat(startMillis: Long): String {
     val from = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US).format(Date(startMillis))
@@ -243,11 +248,11 @@ class DiagnosticsModule(private val context: ReactApplicationContext) :
     var value = input
     value = value.replace(
       Regex("(?i)(authorization\\s*[:=]\\s*bearer\\s+)[A-Za-z0-9._~+/=-]+"),
-      "$1<REDACTED>"
+      "\$1<REDACTED>"
     )
     value = value.replace(
       Regex("(?i)((?:api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|client[_-]?secret|password)\\s*[:=]\\s*[\\\"']?)([^\\s\\\"',}]+)"),
-      "$1<REDACTED>"
+      "\$1<REDACTED>"
     )
     value = value.replace(Regex("(?i)\\bsk-[A-Za-z0-9_-]{12,}\\b"), "<REDACTED_KEY>")
     return value
