@@ -11,19 +11,21 @@ app = app_path.read_text(encoding="utf-8")
 sidebar = sidebar_path.read_text(encoding="utf-8")
 runtime = runtime_path.read_text(encoding="utf-8")
 
-# Register the Root Agent home screen directly from the overlay. Keep this
-# separate from src/screens/index.ts so the overlay does not need to replace
-# upstream's screen barrel file.
+# Register Root Agent screens directly from the overlay. Keep this separate from
+# src/screens/index.ts so the overlay does not replace upstream's screen barrel.
 needle = "import {OnboardingStack} from './src/screens/OnboardingScreens';\n"
-addition = needle + "import {RootAgentHomeScreen} from './src/screens/RootAgentHomeScreen';\n"
+addition = (
+    needle
+    + "import {RootAgentHomeScreen} from './src/screens/RootAgentHomeScreen';\n"
+    + "import {DiagnosticsScreen} from './src/screens/DiagnosticsScreen';\n"
+)
 if addition not in app:
     if needle not in app:
         raise SystemExit("App.tsx onboarding import anchor not found")
     app = app.replace(needle, addition, 1)
 
-# Root Agent Home is a diagnostics screen, not the app landing page. Keep Chat
-# as the explicit default so diagnostics never pop up on every launch; users
-# open Agent themselves from the drawer when they want health information.
+# Diagnostics are opt-in, not the app landing page. Keep Chat as the explicit
+# default so neither Agent Home nor log capture UI pops up on every launch.
 needle = """                        <Drawer.Navigator
                           screenOptions={{
 """
@@ -36,8 +38,7 @@ if replacement not in app:
         raise SystemExit("App.tsx Drawer.Navigator anchor not found")
     app = app.replace(needle, replacement, 1)
 
-# Register Agent Home while preserving all existing PocketPal screens during
-# the gradual UI migration. initialRouteName above keeps Chat as startup route.
+# Register Agent Home + Logs while preserving existing PocketPal screens.
 needle = """                          <Drawer.Screen
                             name={ROUTES.CHAT}
                             component={gestureHandlerRootHOC(ChatScreen)}
@@ -51,6 +52,14 @@ addition = """                          <Drawer.Screen
                             }}
                           />
                           <Drawer.Screen
+                            name=\"RootAgentDiagnostics\"
+                            component={gestureHandlerRootHOC(DiagnosticsScreen)}
+                            options={{
+                              headerStyle: styles.headerWithoutDivider,
+                              title: 'Логи Root Agent',
+                            }}
+                          />
+                          <Drawer.Screen
                             name={ROUTES.CHAT}
                             component={gestureHandlerRootHOC(ChatScreen)}
 """
@@ -59,8 +68,7 @@ if addition not in app:
         raise SystemExit("App.tsx Chat drawer anchor not found")
     app = app.replace(needle, addition, 1)
 
-# Add a dedicated opt-in Agent item without replacing SidebarContent wholesale.
-# This keeps upstream chat/session behavior intact and limits merge conflicts.
+# Add dedicated opt-in Agent + Logs items without replacing SidebarContent.
 needle = """          <Drawer.Section showDivider={false}>
             <Drawer.Item
               label={l10n.components.sidebarContent.menuItems.chat}
@@ -68,9 +76,17 @@ needle = """          <Drawer.Section showDivider={false}>
 addition = """          <Drawer.Section showDivider={false}>
             <Drawer.Item
               label=\"Agent\"
+              icon=\"robot-outline\"
               onPress={() => props.navigation.navigate('RootAgent')}
               style={styles.menuDrawerItem}
               testID=\"drawer-item-root-agent\"
+            />
+            <Drawer.Item
+              label=\"Логи агента\"
+              icon=\"file-document-outline\"
+              onPress={() => props.navigation.navigate('RootAgentDiagnostics')}
+              style={styles.menuDrawerItem}
+              testID=\"drawer-item-root-agent-diagnostics\"
             />
             <Drawer.Item
               label={l10n.components.sidebarContent.menuItems.chat}
@@ -101,4 +117,4 @@ if new not in runtime:
 app_path.write_text(app, encoding="utf-8")
 sidebar_path.write_text(sidebar, encoding="utf-8")
 runtime_path.write_text(runtime, encoding="utf-8")
-print("Applied opt-in Root Agent navigation + machine-readable Linux detection")
+print("Applied opt-in Root Agent + diagnostics navigation and Linux detection fix")
