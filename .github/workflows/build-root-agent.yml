@@ -37,11 +37,14 @@ jobs:
       - name: Apply DeepSeek DSML and long-agent fixes
         run: python3 scripts/apply-dsml-agent-fix.py app
 
-      - name: Make Android and Termux control always available
+      - name: Make Android, Termux and checkpoints always available
         run: python3 scripts/apply-always-on-android-tool.py app
 
       - name: Apply ZeroTermux and Termux integration
         run: python3 scripts/apply-termux-integration.py app
+
+      - name: Apply resumable task checkpoint lifecycle
+        run: python3 scripts/apply-task-checkpoint.py app
 
       - name: Set up Java
         uses: actions/setup-java@v4
