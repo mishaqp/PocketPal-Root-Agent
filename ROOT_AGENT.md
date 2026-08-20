@@ -1,6 +1,6 @@
 # PocketPal Root Agent fork
 
-This fork extends PocketPal's AgentRunner with fixed Android control, structured Termux/ZeroTermux execution, and local-only agent extensions.
+This fork extends PocketPal's AgentRunner with fixed Android control, structured Termux/ZeroTermux execution, resumable tasks, runtime health state, and local-only agent extensions.
 
 ## Android control
 
@@ -35,7 +35,11 @@ Actions:
 - `linux_detect` — inspect the Termux identity and query installed PRoot-Distro containers;
 - `linux_exec` — run one structured executable+argv command inside a selected PRoot-Distro container.
 
+`linux_exec.workdir` maps to PRoot-Distro `--work-dir`, so commands really start inside the requested guest directory without a shell `cd` wrapper.
+
 The bridge deliberately does not accept one concatenated shell command line. Direct Android root escalation executables such as `su`/`tsu` are rejected; privileged Android actions remain in `android_system`. PRoot `uid=0` is not treated as proof of Android root.
+
+When Android has idled ZeroTermux and rejects the exported service start, the native bridge can recover once while Root Agent itself is visibly in the foreground: it foregrounds ZeroTermux, retries the exact same structured command after a short delay, and attempts to return Root Agent to the foreground. This recovery is not attempted from a background Root Agent process. Successful command results include `foregroundRecoveryUsed` so the runtime/logging layer can record that the retry happened.
 
 One-time setup on the phone:
 
@@ -43,7 +47,29 @@ One-time setup on the phone:
 2. In Termux/ZeroTermux set `allow-external-apps=true` in `~/.termux/termux.properties` and reload settings/restart the terminal app.
 3. Run `termux` action `probe`; only a returned result is considered proof that the bridge works.
 
-`com.termux` package visibility and `com.termux.permission.RUN_COMMAND` are added to the Android manifest at build time. Command results return through a one-shot PendingIntent service and include stdout, stderr, exit code, Termux internal error information, and truncation metadata.
+`com.termux` package visibility and `com.termux.permission.RUN_COMMAND` are added to the Android manifest at build time. Command results return through a one-shot PendingIntent service and include stdout, stderr, exit code, Termux internal error information, truncation metadata, and foreground-recovery metadata.
+
+## Resumable tasks
+
+The always-on `task_checkpoint` talent stores per-chat task checkpoints in AsyncStorage. A checkpoint tracks the task, last confirmed step, optional total step count, next action, workspace, notes, last tool outcome, and interruption error.
+
+Verified tool outcomes are also checkpointed automatically. Completion/API/network failures mark the current task `interrupted`. The next request in the same chat receives the persisted checkpoint and is instructed to verify real device/files/process state before continuing, rather than blindly replaying the last command.
+
+Semantic checkpoints created by the model stay active until `task_checkpoint.complete` is called after final verification. Purely automatic bookkeeping checkpoints can close automatically on a normal run finish.
+
+## Root Agent runtime health
+
+`RootAgentRuntimeStore` is the single observable runtime-health source intended for the future Root Agent UI. It tracks:
+
+- Android root readiness, root identity, model, and Android version;
+- ZeroTermux install/permission/service readiness and foreground-recovery count;
+- PRoot/Linux distro readiness;
+- active/interrupted agent task and checkpoint state;
+- passive/deep self-test state and derived problems.
+
+App startup performs a passive read-only self-test: Android access/system info, ZeroTermux configuration status, and checkpoint hydration. It deliberately does **not** execute a Termux command on startup, so opening the app cannot unexpectedly switch to ZeroTermux.
+
+A deep self-test is lazy/explicit and actually probes Termux, `proot-distro list`, and one read-only `id` inside the detected distro. Normal `android_system`/`termux` tool outcomes continuously refresh the runtime store, so future Device/Tasks/Linux dashboards can observe one state object rather than issue their own root commands.
 
 ## Agent extensions
 
@@ -55,7 +81,7 @@ The fork adds local-only extension storage:
 - `memory` and `agent_extensions` talents, selectable per Pal;
 - a built-in DeepSeek API preset.
 
-Imported plugins never execute JavaScript, native code, Android root operations, or Termux commands. Both `android_system` and `termux` are blocked from plugin delegation.
+Imported plugins never execute JavaScript, native code, Android root operations, Termux commands, or task checkpoints. Privileged runtime talents are blocked from plugin delegation.
 
 ## Safety boundary
 
