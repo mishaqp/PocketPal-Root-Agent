@@ -10,6 +10,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableArray
+import com.facebook.react.bridge.ReadableType
 import com.facebook.react.module.annotations.ReactModule
 
 /**
@@ -35,7 +36,8 @@ class TermuxBridgeModule(private val context: ReactApplicationContext) :
     private const val EXTRA_WORKDIR = "com.termux.RUN_COMMAND_WORKDIR"
     private const val EXTRA_BACKGROUND = "com.termux.RUN_COMMAND_BACKGROUND"
     private const val EXTRA_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT"
-    private const val PREFIX = "$PREFIX/bin/"
+    private const val TERMUX_BIN_PREFIX = "\$PREFIX/bin/"
+    private const val TERMUX_PREFIX_TOKEN = "\$PREFIX/"
     private const val DEFAULT_WORKDIR = "~/"
   }
 
@@ -54,8 +56,7 @@ class TermuxBridgeModule(private val context: ReactApplicationContext) :
         null
       }
       val appInfo = packageInfo?.applicationInfo
-      val installed = packageInfo != null
-      map.putBoolean("installed", installed)
+      map.putBoolean("installed", packageInfo != null)
       map.putString("packageName", TERMUX_PACKAGE)
       map.putString("versionName", packageInfo?.versionName ?: "")
       map.putString(
@@ -70,7 +71,10 @@ class TermuxBridgeModule(private val context: ReactApplicationContext) :
         setClassName(TERMUX_PACKAGE, TERMUX_RUN_SERVICE)
         action = ACTION_RUN_COMMAND
       }
-      map.putBoolean("runCommandServiceVisible", context.packageManager.resolveService(serviceIntent, 0) != null)
+      map.putBoolean(
+        "runCommandServiceVisible",
+        context.packageManager.resolveService(serviceIntent, 0) != null,
+      )
       map.putString(
         "setupHint",
         "Grant Run commands in Termux environment to PocketPal Root Agent and set allow-external-apps=true in ~/.termux/termux.properties"
@@ -99,9 +103,7 @@ class TermuxBridgeModule(private val context: ReactApplicationContext) :
       }
       val timeout = timeoutMs.toLong().coerceIn(1_000L, 600_000L)
 
-      if (getPackageInfoCompat(TERMUX_PACKAGE).packageName != TERMUX_PACKAGE) {
-        throw IllegalStateException("Termux/ZeroTermux is not installed")
-      }
+      getPackageInfoCompat(TERMUX_PACKAGE)
       if (context.checkSelfPermission(PERMISSION_RUN_COMMAND) != PackageManager.PERMISSION_GRANTED) {
         throw SecurityException(
           "PocketPal Root Agent does not have com.termux.permission.RUN_COMMAND. Grant the Additional permission: Run commands in Termux environment."
@@ -124,7 +126,7 @@ class TermuxBridgeModule(private val context: ReactApplicationContext) :
       val commandIntent = Intent().apply {
         setClassName(TERMUX_PACKAGE, TERMUX_RUN_SERVICE)
         action = ACTION_RUN_COMMAND
-        putExtra(EXTRA_COMMAND_PATH, PREFIX + safeExecutable)
+        putExtra(EXTRA_COMMAND_PATH, TERMUX_BIN_PREFIX + safeExecutable)
         putExtra(EXTRA_ARGUMENTS, safeArgs.toTypedArray())
         putExtra(EXTRA_WORKDIR, safeWorkdir)
         putExtra(EXTRA_BACKGROUND, true)
@@ -162,7 +164,7 @@ class TermuxBridgeModule(private val context: ReactApplicationContext) :
     var total = 0
     val result = ArrayList<String>(arguments.size())
     for (i in 0 until arguments.size()) {
-      require(arguments.getType(i).name == "String") { "all command arguments must be strings" }
+      require(arguments.getType(i) == ReadableType.String) { "all command arguments must be strings" }
       val value = arguments.getString(i) ?: ""
       require(value.length <= 8_192) { "each argument is limited to 8192 characters" }
       total += value.length
@@ -177,7 +179,7 @@ class TermuxBridgeModule(private val context: ReactApplicationContext) :
     require(workdir.length <= 512) { "workdir is too long" }
     val allowed = workdir == "~/" ||
       workdir.startsWith("~/") ||
-      workdir.startsWith("$PREFIX/") ||
+      workdir.startsWith(TERMUX_PREFIX_TOKEN) ||
       workdir.startsWith("/storage/emulated/0/") ||
       workdir == "/storage/emulated/0" ||
       workdir.startsWith("/sdcard/") ||
