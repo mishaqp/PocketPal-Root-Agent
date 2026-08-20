@@ -9,25 +9,28 @@ extension_store_path = root / "src/store/ExtensionStore.ts"
 manifest = manifest_path.read_text(encoding="utf-8")
 
 if '<package android:name="com.termux" />' not in manifest:
-    anchor = """    </queries>\n\n    <uses-permission android:name=\"android.permission.INTERNET\" />\n"""
-    replacement = """        <package android:name=\"com.termux\" />\n    </queries>\n\n    <uses-permission android:name=\"android.permission.INTERNET\" />\n"""
+    anchor = "    </queries>"
+    replacement = '        <package android:name="com.termux" />\n    </queries>'
     if anchor not in manifest:
         raise SystemExit("AndroidManifest queries anchor not found; upstream changed")
     manifest = manifest.replace(anchor, replacement, 1)
 
 if 'com.termux.permission.RUN_COMMAND' not in manifest:
-    anchor = '    <uses-permission android:name="android.permission.CAMERA" />\n'
+    anchor = '    <uses-permission android:name="android.permission.CAMERA" />'
     replacement = (
         anchor
-        + '    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />\n'
+        + '\n    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />'
     )
     if anchor not in manifest:
         raise SystemExit("AndroidManifest permission anchor not found; upstream changed")
     manifest = manifest.replace(anchor, replacement, 1)
 
 if 'android:name=".TermuxResultService"' not in manifest:
-    anchor = "    </application>\n</manifest>\n"
-    replacement = """        <service\n            android:name=\".TermuxResultService\"\n            android:exported=\"false\" />\n    </application>\n</manifest>\n"""
+    anchor = "    </application>"
+    replacement = """        <service
+            android:name=\".TermuxResultService\"
+            android:exported=\"false\" />
+    </application>"""
     if anchor not in manifest:
         raise SystemExit("AndroidManifest application anchor not found; upstream changed")
     manifest = manifest.replace(anchor, replacement, 1)
