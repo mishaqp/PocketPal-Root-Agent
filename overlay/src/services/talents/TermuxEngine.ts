@@ -24,6 +24,7 @@ export class TermuxEngine implements TalentEngine {
       '- Do not use Termux to obtain Android root. Privileged Android operations belong to android_system.',
       '- linux_detect checks for PRoot-Distro. linux_exec runs a structured command inside a detected PRoot container.',
       '- linux_exec workdir is applied inside the guest with PRoot-Distro --work-dir; do not emulate it with shell cd.',
+      '- If Android idled ZeroTermux, the native bridge may foreground it and retry the same command once; foregroundRecoveryUsed in the result records that recovery.',
       '- A PRoot container reporting uid=0 is not proof of Android uid=0.',
     ].join('\n');
   }
@@ -225,6 +226,7 @@ export class TermuxEngine implements TalentEngine {
       termuxError: value.termuxError,
       termuxErrorMessage: value.termuxErrorMessage,
       truncated: value.truncated,
+      foregroundRecoveryUsed: value.foregroundRecoveryUsed,
     };
   }
 
