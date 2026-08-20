@@ -7,7 +7,11 @@ const slugify = (value: string): string =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 64) || 'imported-extension';
 
-const FORBIDDEN_PLUGIN_TALENTS = new Set(['android_system', 'termux']);
+const FORBIDDEN_PLUGIN_TALENTS = new Set([
+  'android_system',
+  'termux',
+  'task_checkpoint',
+]);
 
 function parseFrontmatter(raw: string): {
   attributes: Record<string, string>;
