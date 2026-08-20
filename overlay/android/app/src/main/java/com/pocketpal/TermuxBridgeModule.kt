@@ -4,6 +4,8 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -39,10 +41,12 @@ class TermuxBridgeModule(private val context: ReactApplicationContext) :
     private const val TERMUX_BIN_PREFIX = "\$PREFIX/bin/"
     private const val TERMUX_PREFIX_TOKEN = "\$PREFIX/"
     private const val DEFAULT_WORKDIR = "~/"
+    private const val FOREGROUND_RECOVERY_DELAY_MS = 750L
   }
 
   private val executablePattern = Regex("^[A-Za-z0-9][A-Za-z0-9._+:-]{0,63}$")
   private val blockedExecutables = setOf("su", "sudo", "tsu", "magisk", "ksud")
+  private val mainHandler = Handler(Looper.getMainLooper())
 
   override fun getName(): String = NAME
 
@@ -135,17 +139,96 @@ class TermuxBridgeModule(private val context: ReactApplicationContext) :
       }
 
       TermuxCommandBroker.register(executionId, promise, timeout)
-      try {
-        val component = context.startService(commandIntent)
-        if (component == null) {
-          TermuxCommandBroker.fail(executionId, "Termux RunCommandService could not be started")
-        }
-      } catch (e: Exception) {
-        TermuxCommandBroker.fail(executionId, e.message ?: "Failed to start Termux command")
-      }
+      startCommandService(executionId, commandIntent)
     } catch (e: Exception) {
       promise.reject("TERMUX_RUN_FAILED", e.message, e)
     }
+  }
+
+  /**
+   * Android may reject an exported service start when ZeroTermux has been idle
+   * in the background. When Root Agent itself is visibly in the foreground we
+   * can safely wake ZeroTermux once, retry the exact same structured command,
+   * then bring Root Agent back. We never do this from a background agent/app.
+   */
+  private fun startCommandService(executionId: Int, commandIntent: Intent) {
+    try {
+      val component = context.startService(commandIntent)
+      if (component == null) {
+        TermuxCommandBroker.fail(executionId, "Termux RunCommandService could not be started")
+      }
+    } catch (e: Exception) {
+      if (isBackgroundStartRestriction(e) && scheduleForegroundRecovery(executionId, commandIntent)) {
+        return
+      }
+      TermuxCommandBroker.fail(executionId, e.message ?: "Failed to start Termux command")
+    }
+  }
+
+  private fun scheduleForegroundRecovery(executionId: Int, commandIntent: Intent): Boolean {
+    val callerActivity = currentActivity ?: return false
+    if (callerActivity.isFinishing || callerActivity.isDestroyed) return false
+    val launchTermux = context.packageManager.getLaunchIntentForPackage(TERMUX_PACKAGE) ?: return false
+
+    TermuxCommandBroker.markForegroundRecovery(executionId)
+    mainHandler.post {
+      try {
+        launchTermux.addFlags(
+          Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+            Intent.FLAG_ACTIVITY_NO_ANIMATION,
+        )
+        context.startActivity(launchTermux)
+      } catch (e: Exception) {
+        TermuxCommandBroker.fail(
+          executionId,
+          "ZeroTermux background recovery could not foreground the app: ${e.message ?: e.javaClass.simpleName}",
+        )
+        return@post
+      }
+
+      mainHandler.postDelayed({
+        try {
+          val component = context.startService(commandIntent)
+          if (component == null) {
+            TermuxCommandBroker.fail(
+              executionId,
+              "Termux RunCommandService could not be started after foreground recovery",
+            )
+          }
+        } catch (e: Exception) {
+          TermuxCommandBroker.fail(
+            executionId,
+            "Termux retry after foreground recovery failed: ${e.message ?: e.javaClass.simpleName}",
+          )
+        } finally {
+          bringRootAgentToFront()
+        }
+      }, FOREGROUND_RECOVERY_DELAY_MS)
+    }
+    return true
+  }
+
+  private fun bringRootAgentToFront() {
+    try {
+      val launchSelf = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+      launchSelf.addFlags(
+        Intent.FLAG_ACTIVITY_NEW_TASK or
+          Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+          Intent.FLAG_ACTIVITY_SINGLE_TOP or
+          Intent.FLAG_ACTIVITY_NO_ANIMATION,
+      )
+      context.startActivity(launchSelf)
+    } catch (_: Exception) {
+      // The command result still reaches TermuxResultService even if Android
+      // refuses this cosmetic foreground restoration.
+    }
+  }
+
+  private fun isBackgroundStartRestriction(error: Exception): Boolean {
+    val text = "${error.javaClass.name}: ${error.message.orEmpty()}".lowercase()
+    return text.contains("backgroundservicestartnotallowedexception") ||
+      (text.contains("not allowed to start service") && text.contains("background"))
   }
 
   private fun validateExecutable(value: String): String {
