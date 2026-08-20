@@ -11,6 +11,7 @@ class AndroidControlPackage : TurboReactPackage() {
     return when (name) {
       AndroidControlModule.NAME -> AndroidControlModule(reactContext)
       TermuxBridgeModule.NAME -> TermuxBridgeModule(reactContext)
+      DiagnosticsModule.NAME -> DiagnosticsModule(reactContext)
       else -> null
     }
   }
@@ -30,6 +31,15 @@ class AndroidControlPackage : TurboReactPackage() {
         TermuxBridgeModule.NAME to ReactModuleInfo(
           TermuxBridgeModule.NAME,
           TermuxBridgeModule.NAME,
+          false,
+          false,
+          true,
+          false,
+          false
+        ),
+        DiagnosticsModule.NAME to ReactModuleInfo(
+          DiagnosticsModule.NAME,
+          DiagnosticsModule.NAME,
           false,
           false,
           true,
