@@ -12,6 +12,7 @@ object TermuxCommandBroker {
   private data class PendingCommand(
     val promise: Promise,
     val timeoutRunnable: Runnable,
+    @Volatile var foregroundRecoveryUsed: Boolean = false,
   )
 
   private val nextId = AtomicInteger(10_000)
@@ -34,6 +35,10 @@ object TermuxCommandBroker {
     }
     pending[executionId] = PendingCommand(promise, timeout)
     mainHandler.postDelayed(timeout, timeoutMs)
+  }
+
+  fun markForegroundRecovery(executionId: Int) {
+    pending[executionId]?.foregroundRecoveryUsed = true
   }
 
   fun complete(
@@ -62,6 +67,7 @@ object TermuxCommandBroker {
         "truncated",
         stdoutOriginalLength > stdout.length || stderrOriginalLength > stderr.length,
       )
+      map.putBoolean("foregroundRecoveryUsed", command.foregroundRecoveryUsed)
       command.promise.resolve(map)
     }
   }
