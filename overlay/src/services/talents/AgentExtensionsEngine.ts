@@ -10,6 +10,7 @@ import type {
 const FORBIDDEN_PLUGIN_TALENTS = new Set([
   'android_system',
   'termux',
+  'task_checkpoint',
   'agent_extensions',
 ]);
 
