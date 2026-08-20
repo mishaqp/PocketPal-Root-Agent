@@ -7,6 +7,8 @@ const slugify = (value: string): string =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 64) || 'imported-extension';
 
+const FORBIDDEN_PLUGIN_TALENTS = new Set(['android_system', 'termux']);
+
 function parseFrontmatter(raw: string): {
   attributes: Record<string, string>;
   body: string;
@@ -70,8 +72,11 @@ export function parsePluginManifest(raw: string): AgentPlugin {
   if (!value.name || !Array.isArray(value.talents)) {
     throw new Error('Plugin requires name and talents[]');
   }
-  if (value.talents.includes('android_system')) {
-    throw new Error('Plugins cannot request android_system root access');
+  const forbidden = value.talents.map(String).find(talent =>
+    FORBIDDEN_PLUGIN_TALENTS.has(talent),
+  );
+  if (forbidden) {
+    throw new Error(`Plugins cannot request privileged talent ${forbidden}`);
   }
   return {
     id: slugify(value.id || value.name),
@@ -81,4 +86,3 @@ export function parsePluginManifest(raw: string): AgentPlugin {
     enabled: value.enabled !== false,
   };
 }
-
