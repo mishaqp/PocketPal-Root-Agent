@@ -9,44 +9,45 @@ extension_store_path = root / "src/store/ExtensionStore.ts"
 manifest = manifest_path.read_text(encoding="utf-8")
 
 if '<package android:name="com.termux" />' not in manifest:
-    anchor = "    </queries>"
-    replacement = '        <package android:name="com.termux" />\n    </queries>'
+    anchor = """        </intent>\n    </queries>\n"""
+    replacement = """        </intent>\n        <package android:name=\"com.termux\" />\n    </queries>\n"""
     if anchor not in manifest:
         raise SystemExit("AndroidManifest queries anchor not found; upstream changed")
     manifest = manifest.replace(anchor, replacement, 1)
 
 if 'com.termux.permission.RUN_COMMAND' not in manifest:
-    anchor = '    <uses-permission android:name="android.permission.CAMERA" />'
+    anchor = '    <uses-permission android:name="android.permission.CAMERA" />\n'
     replacement = (
         anchor
-        + '\n    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />'
+        + '    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />\n'
     )
     if anchor not in manifest:
         raise SystemExit("AndroidManifest permission anchor not found; upstream changed")
     manifest = manifest.replace(anchor, replacement, 1)
 
 if 'android:name=".TermuxResultService"' not in manifest:
-    anchor = "    </application>"
-    replacement = """        <service
-            android:name=\".TermuxResultService\"
-            android:exported=\"false\" />
-    </application>"""
+    anchor = "    </application>\n\n</manifest>\n"
+    replacement = """        <service\n            android:name=\".TermuxResultService\"\n            android:exported=\"false\" />\n    </application>\n\n</manifest>\n"""
     if anchor not in manifest:
         raise SystemExit("AndroidManifest application anchor not found; upstream changed")
     manifest = manifest.replace(anchor, replacement, 1)
 
 manifest_path.write_text(manifest, encoding="utf-8")
 
-# Imported JSON plugins may never inherit command execution, just as they may
-# never inherit android_system. The importer rejects it too; this also sanitizes
+# Imported JSON plugins may never inherit command execution or persistent
+# runtime checkpoint control. The importer rejects these too; this sanitizes
 # persisted plugin data during hydration.
 store = extension_store_path.read_text(encoding="utf-8")
-old = ".filter(talent => talent !== 'android_system'),"
-new = ".filter(talent => talent !== 'android_system' && talent !== 'termux'),"
-if old in store:
-    store = store.replace(old, new, 1)
-elif new not in store:
-    raise SystemExit("ExtensionStore plugin filter anchor not found")
+legacy = ".filter(talent => talent !== 'android_system'),"
+termux_only = ".filter(talent => talent !== 'android_system' && talent !== 'termux'),"
+final_block = """.filter(\n            talent =>\n              talent !== 'android_system' &&\n              talent !== 'termux' &&\n              talent !== 'task_checkpoint',\n          ),"""
+if final_block not in store:
+    if termux_only in store:
+        store = store.replace(termux_only, final_block, 1)
+    elif legacy in store:
+        store = store.replace(legacy, final_block, 1)
+    else:
+        raise SystemExit("ExtensionStore plugin filter anchor not found")
 extension_store_path.write_text(store, encoding="utf-8")
 
 print("Applied Termux manifest permissions, package visibility, result service, and plugin isolation")
