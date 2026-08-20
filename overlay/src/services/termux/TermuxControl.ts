@@ -20,6 +20,7 @@ export type TermuxCommandResult = {
   stdoutOriginalLength: number;
   stderrOriginalLength: number;
   truncated: boolean;
+  foregroundRecoveryUsed: boolean;
 };
 
 const native = Platform.OS === 'android' ? NativeModules.TermuxBridge : null;
