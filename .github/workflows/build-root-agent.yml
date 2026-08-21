@@ -55,6 +55,12 @@ jobs:
       - name: Apply checkpoint policy and model diagnostics
         run: python3 scripts/apply-root-agent-hardening.py app
 
+      - name: Fix completed checkpoint progress
+        run: python3 scripts/apply-checkpoint-progress-fix.py app
+
+      - name: Apply in-chat Agent activity panel
+        run: python3 scripts/apply-agent-chat-panel.py app
+
       - name: Apply Root Agent home UI
         run: python3 scripts/apply-root-agent-ui.py app
 
