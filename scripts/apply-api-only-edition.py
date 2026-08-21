@@ -34,8 +34,6 @@ def main() -> None:
     if not (root / "package.json").exists():
         fail(f"not an app root: {root}")
 
-    # Personal Android build: modern phones are arm64. Dropping x86_64
-    # removes the emulator ABI and its duplicate native payload.
     build_gradle = root / "android/app/build.gradle"
     replace_once(
         build_gradle,
@@ -44,9 +42,6 @@ def main() -> None:
         "arm64-only ABI",
     )
 
-    # Keep whatever project/font config the pinned upstream has and inject only
-    # the llama.rn Android autolink exclusion. This deliberately anchors on the
-    # stable assets line instead of replacing the whole config file.
     rn_config = root / "react-native.config.js"
     rn_text = rn_config.read_text(encoding="utf-8")
     if "'llama.rn'" not in rn_text:
@@ -78,33 +73,22 @@ def main() -> None:
         )
         rn_config.write_text(rn_text, encoding="utf-8")
 
-    # Runtime shim: Metro redirects llama.rn imports here, while tsc continues
-    # to use the real package declarations. Remote OpenAI-compatible completion
-    # never needs the native llama.cpp runtime.
     shim_dir = root / "src/shims"
     shim_dir.mkdir(parents=True, exist_ok=True)
     shim = shim_dir / "llamaRnApiOnly.js"
     shim.write_text(
-        r"""/**
- * Root Agent API Edition runtime shim for llama.rn.
- * Local inference is intentionally disabled; remote/API completion remains in
- * the original OpenAICompletionEngine.
- */
-
+        r"""/** Root Agent API Edition runtime shim for llama.rn. */
 const API_ONLY_MESSAGE =
   'Local llama.rn inference is disabled in Root Agent API Edition. Configure and select a remote/API model.';
-
 const disabled = name => {
   throw new Error(`${API_ONLY_MESSAGE} (${name})`);
 };
-
 const BuildInfo = {number: 'API', commit: 'api-only'};
 const getBackendDevicesInfo = async () => [];
 const loadLlamaModelInfo = async () => ({});
 const initLlama = async () => disabled('initLlama');
 const releaseAllLlama = async () => {};
 const toggleNativeLog = () => {};
-
 const known = {
   BuildInfo,
   getBackendDevicesInfo,
@@ -113,7 +97,6 @@ const known = {
   releaseAllLlama,
   toggleNativeLog,
 };
-
 const fallback = new Proxy(function apiOnlyDisabledExport() {}, {
   apply() {
     return disabled('llama.rn export');
@@ -124,7 +107,6 @@ const fallback = new Proxy(function apiOnlyDisabledExport() {}, {
     return fallback;
   },
 });
-
 module.exports = new Proxy(known, {
   get(target, prop) {
     if (prop === '__esModule') return false;
@@ -136,7 +118,6 @@ module.exports = new Proxy(known, {
         encoding="utf-8",
     )
 
-    # Keep upstream Metro behavior and intercept only the exact llama.rn module.
     metro = root / "metro.config.js"
     replace_once(
         metro,
@@ -162,8 +143,6 @@ module.exports = new Proxy(known, {
         "Metro llama.rn alias",
     )
 
-    # Keep ModelStore because remote/API models are integrated there, but only
-    # expose ServerStore-backed remote models to selection surfaces.
     model_store = root / "src/store/ModelStore.ts"
     replace_once(
         model_store,
@@ -179,12 +158,11 @@ module.exports = new Proxy(known, {
 
     regex_once(
         model_store,
-        r"  get availableModels\(\): Model\[\] \{.*?\n  \}\n\n  isModelAvailable",
+        r"  get availableModels\(\): Model\[\] \{.*?\n  \}(?=\n\n  setInferencing)",
         "  get availableModels(): Model[] {\n"
         "    // Root Agent API Edition: local GGUF inference is disabled.\n"
         "    return this.remoteModels;\n"
-        "  }\n\n"
-        "  isModelAvailable",
+        "  }",
         "remote-only availableModels",
     )
 
