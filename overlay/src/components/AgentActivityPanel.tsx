@@ -6,10 +6,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import {useTheme} from '../hooks';
 import {chatSessionStore} from '../store';
-import {
-  taskCheckpointStore,
-  TaskCheckpoint,
-} from '../services/taskCheckpoint/TaskCheckpointStore';
+import {taskCheckpointStore} from '../services/taskCheckpoint/TaskCheckpointStore';
+import type {TaskCheckpoint} from '../services/taskCheckpoint/TaskCheckpointStore';
 
 const ACTIVE_STATUSES = new Set([
   'prefill',
@@ -153,7 +151,9 @@ export const AgentActivityPanel = observer(() => {
 
   const refreshCheckpoint = React.useCallback(async () => {
     await taskCheckpointStore.ensureHydrated();
-    setCheckpoint(sessionId ? taskCheckpointStore.getForSession(sessionId) : undefined);
+    setCheckpoint(
+      sessionId ? taskCheckpointStore.getForSession(sessionId) : undefined,
+    );
   }, [sessionId]);
 
   React.useEffect(() => {
