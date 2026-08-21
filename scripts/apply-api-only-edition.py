@@ -34,12 +34,25 @@ def main() -> None:
     if not (root / "package.json").exists():
         fail(f"not an app root: {root}")
 
+    # App-level packaging filter.
     build_gradle = root / "android/app/build.gradle"
     replace_once(
         build_gradle,
         'abiFilters "arm64-v8a", "x86_64"',
         'abiFilters "arm64-v8a"',
         "arm64-only ABI",
+    )
+
+    # React Native/CMake reads this project-wide property and otherwise still
+    # builds x86_64 for appmodules, Hermes, Reanimated, Worklets, VisionCamera,
+    # etc. Keeping both this and abiFilters makes the final APK and the native
+    # build graph arm64-only.
+    gradle_properties = root / "android/gradle.properties"
+    replace_once(
+        gradle_properties,
+        "reactNativeArchitectures=arm64-v8a,x86_64",
+        "reactNativeArchitectures=arm64-v8a",
+        "React Native arm64-only architectures",
     )
 
     rn_config = root / "react-native.config.js"
