@@ -44,21 +44,32 @@ def main() -> None:
         "arm64-only ABI",
     )
 
-    # Keep llama.rn installed only for TypeScript declarations. The native
-    # Android module is not autolinked in API Edition.
+    # Keep upstream project/font configuration, adding only the Android
+    # autolink exclusion for llama.rn. The npm package remains installed so
+    # TypeScript can continue to use its declarations.
     rn_config = root / "react-native.config.js"
-    if rn_config.exists():
-        fail("react-native.config.js unexpectedly exists upstream; merge manually")
-    rn_config.write_text(
-        "// Root Agent API Edition: remote/API models only.\n"
+    replace_once(
+        rn_config,
         "module.exports = {\n"
+        "  project: {\n"
+        "    ios: {},\n"
+        "    android: {},\n"
+        "  },\n"
+        "  assets: ['./src/assets/fonts'],\n"
+        "};\n",
+        "module.exports = {\n"
+        "  project: {\n"
+        "    ios: {},\n"
+        "    android: {},\n"
+        "  },\n"
+        "  assets: ['./src/assets/fonts'],\n"
         "  dependencies: {\n"
         "    'llama.rn': {\n"
         "      platforms: {android: null},\n"
         "    },\n"
         "  },\n"
         "};\n",
-        encoding="utf-8",
+        "llama.rn Android autolink exclusion",
     )
 
     # Runtime shim: Metro redirects llama.rn imports here, while tsc continues
