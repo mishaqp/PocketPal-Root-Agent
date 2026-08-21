@@ -72,6 +72,9 @@ jobs:
       - name: Apply scheduled task integration
         run: python3 scripts/apply-scheduled-agent-runtime.py app
 
+      - name: Apply Multi-Provider API v1
+        run: python3 scripts/apply-multi-provider-api.py app
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
