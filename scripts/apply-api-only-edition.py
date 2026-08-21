@@ -44,33 +44,39 @@ def main() -> None:
         "arm64-only ABI",
     )
 
-    # Keep upstream project/font configuration, adding only the Android
-    # autolink exclusion for llama.rn. The npm package remains installed so
-    # TypeScript can continue to use its declarations.
+    # Keep whatever project/font config the pinned upstream has and inject only
+    # the llama.rn Android autolink exclusion. This deliberately anchors on the
+    # stable assets line instead of replacing the whole config file.
     rn_config = root / "react-native.config.js"
-    replace_once(
-        rn_config,
-        "module.exports = {\n"
-        "  project: {\n"
-        "    ios: {},\n"
-        "    android: {},\n"
-        "  },\n"
-        "  assets: ['./src/assets/fonts'],\n"
-        "};\n",
-        "module.exports = {\n"
-        "  project: {\n"
-        "    ios: {},\n"
-        "    android: {},\n"
-        "  },\n"
-        "  assets: ['./src/assets/fonts'],\n"
-        "  dependencies: {\n"
-        "    'llama.rn': {\n"
-        "      platforms: {android: null},\n"
-        "    },\n"
-        "  },\n"
-        "};\n",
-        "llama.rn Android autolink exclusion",
-    )
+    rn_text = rn_config.read_text(encoding="utf-8")
+    if "'llama.rn'" not in rn_text:
+        asset_match = re.search(
+            r"(?m)^(\s*assets\s*:\s*\['\./src/assets/fonts'\]\s*,\s*)$",
+            rn_text,
+        )
+        if not asset_match:
+            fail("could not locate upstream font assets entry in react-native.config.js")
+        indent = re.match(r"\s*", asset_match.group(1)).group(0)
+        dependency_block = (
+            asset_match.group(1)
+            + "\n"
+            + indent
+            + "dependencies: {\n"
+            + indent
+            + "  'llama.rn': {\n"
+            + indent
+            + "    platforms: {android: null},\n"
+            + indent
+            + "  },\n"
+            + indent
+            + "},"
+        )
+        rn_text = (
+            rn_text[: asset_match.start()]
+            + dependency_block
+            + rn_text[asset_match.end() :]
+        )
+        rn_config.write_text(rn_text, encoding="utf-8")
 
     # Runtime shim: Metro redirects llama.rn imports here, while tsc continues
     # to use the real package declarations. Remote OpenAI-compatible completion
@@ -92,21 +98,10 @@ const disabled = name => {
   throw new Error(`${API_ONLY_MESSAGE} (${name})`);
 };
 
-// AboutScreen reads this synchronously.
-const BuildInfo = {
-  number: 'API',
-  commit: 'api-only',
-};
-
-// Local-only capability/metadata probes fail open.
+const BuildInfo = {number: 'API', commit: 'api-only'};
 const getBackendDevicesInfo = async () => [];
 const loadLlamaModelInfo = async () => ({});
-
-// Any actual attempt to start local inference should fail explicitly.
 const initLlama = async () => disabled('initLlama');
-
-// Cleanup/logging calls can safely become no-ops after upgrading from a build
-// that previously contained the native runtime.
 const releaseAllLlama = async () => {};
 const toggleNativeLog = () => {};
 
@@ -119,8 +114,6 @@ const known = {
   toggleNativeLog,
 };
 
-// Future local-only imports should not crash during module evaluation. If an
-// unknown export is actually invoked, it fails with the API-only explanation.
 const fallback = new Proxy(function apiOnlyDisabledExport() {}, {
   apply() {
     return disabled('llama.rn export');
@@ -169,7 +162,7 @@ module.exports = new Proxy(known, {
         "Metro llama.rn alias",
     )
 
-    # Keep ModelStore itself because remote models are integrated there, but only
+    # Keep ModelStore because remote/API models are integrated there, but only
     # expose ServerStore-backed remote models to selection surfaces.
     model_store = root / "src/store/ModelStore.ts"
     replace_once(
