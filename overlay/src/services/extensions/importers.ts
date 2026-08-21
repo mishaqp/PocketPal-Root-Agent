@@ -11,6 +11,7 @@ const FORBIDDEN_PLUGIN_TALENTS = new Set([
   'android_system',
   'termux',
   'task_checkpoint',
+  'scheduled_agent',
 ]);
 
 function parseFrontmatter(raw: string): {
