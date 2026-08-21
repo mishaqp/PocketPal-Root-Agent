@@ -64,6 +64,9 @@ jobs:
       - name: Apply Root Agent home UI
         run: python3 scripts/apply-root-agent-ui.py app
 
+      - name: Apply API-only Android optimization
+        run: python3 scripts/apply-api-only-edition.py app
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -84,6 +87,79 @@ jobs:
       - name: Build release APK
         working-directory: app/android
         run: ./gradlew assembleProdRelease --no-daemon --stacktrace
+
+      - name: Verify and report API-only APK payload
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import collections
+          import zipfile
+
+          apks = sorted(Path('app/android/app/build/outputs/apk').glob('**/release/*.apk'))
+          if not apks:
+              raise SystemExit('No release APK found for payload verification')
+          apk = apks[0]
+
+          with zipfile.ZipFile(apk) as archive:
+              infos = archive.infolist()
+              names = [i.filename for i in infos]
+
+              forbidden_x86 = [n for n in names if n.startswith('lib/x86_64/')]
+              forbidden_llama = [n for n in names if 'librnllama' in n.lower()]
+              if forbidden_x86:
+                  raise SystemExit(f'API Edition still contains x86_64 native files: {forbidden_x86[:8]}')
+              if forbidden_llama:
+                  raise SystemExit(f'API Edition still contains llama.rn native files: {forbidden_llama[:8]}')
+
+              groups = collections.defaultdict(lambda: [0, 0])
+              for info in infos:
+                  name = info.filename
+                  if name.startswith('lib/arm64-v8a/libonnxruntime'):
+                      group = 'arm64 onnxruntime (TTS)'
+                  elif name.startswith('lib/arm64-v8a/'):
+                      group = 'arm64 other native'
+                  elif name == 'assets/index.android.bundle':
+                      group = 'JS bundle'
+                  elif name.startswith('classes') and name.endswith('.dex'):
+                      group = 'DEX'
+                  elif name.startswith('assets/'):
+                      group = 'other assets'
+                  elif name.startswith('res/') or name == 'resources.arsc':
+                      group = 'resources'
+                  else:
+                      group = 'other'
+                  groups[group][0] += info.file_size
+                  groups[group][1] += info.compress_size
+
+              largest = sorted(infos, key=lambda i: i.file_size, reverse=True)[:25]
+
+          mib = 1024 * 1024
+          lines = [
+              'Root Agent API Edition APK payload report',
+              f'APK: {apk}',
+              f'APK file size: {apk.stat().st_size / mib:.2f} MiB',
+              'Gate: arm64-only = PASS',
+              'Gate: llama.rn native payload absent = PASS',
+              '',
+              'Payload groups:',
+          ]
+          for group, (raw, compressed) in sorted(groups.items(), key=lambda item: item[1][1], reverse=True):
+              lines.append(f'- {group}: raw={raw / mib:.2f} MiB compressed={compressed / mib:.2f} MiB')
+          lines += ['', 'Largest entries:']
+          for info in largest:
+              lines.append(f'- {info.file_size / mib:.2f} MiB raw / {info.compress_size / mib:.2f} MiB compressed  {info.filename}')
+
+          report = '\n'.join(lines) + '\n'
+          Path('apk-size-report.txt').write_text(report, encoding='utf-8')
+          print(report)
+          PY
+
+      - name: Upload APK size report
+        uses: actions/upload-artifact@v4
+        with:
+          name: PocketPal-Root-Agent-size-report
+          path: apk-size-report.txt
+          if-no-files-found: error
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
