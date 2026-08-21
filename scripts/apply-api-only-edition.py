@@ -34,11 +34,8 @@ def main() -> None:
     if not (root / "package.json").exists():
         fail(f"not an app root: {root}")
 
-    # ------------------------------------------------------------------
-    # 1) Personal Android build: POCO/modern Android is arm64 only.
-    #    Dropping x86_64 removes the emulator ABI and its duplicate native
-    #    runtime payload from the shipped APK without changing JS behavior.
-    # ------------------------------------------------------------------
+    # Personal Android build: modern phones are arm64. Dropping x86_64
+    # removes the emulator ABI and its duplicate native payload.
     build_gradle = root / "android/app/build.gradle"
     replace_once(
         build_gradle,
@@ -47,39 +44,34 @@ def main() -> None:
         "arm64-only ABI",
     )
 
-    # ------------------------------------------------------------------
-    # 2) Disable llama.rn native autolinking on Android. The package remains
-    #    installed so TypeScript can use its type declarations while Metro
-    #    resolves runtime imports to the API-only shim below.
-    # ------------------------------------------------------------------
+    # Keep llama.rn installed only for TypeScript declarations. The native
+    # Android module is not autolinked in API Edition.
     rn_config = root / "react-native.config.js"
     if rn_config.exists():
         fail("react-native.config.js unexpectedly exists upstream; merge manually")
     rn_config.write_text(
-        """// Root Agent API Edition: remote/API models only.\n"
+        "// Root Agent API Edition: remote/API models only.\n"
         "module.exports = {\n"
         "  dependencies: {\n"
         "    'llama.rn': {\n"
         "      platforms: {android: null},\n"
         "    },\n"
         "  },\n"
-        "};\n"
-        """,
+        "};\n",
         encoding="utf-8",
     )
 
+    # Runtime shim: Metro redirects llama.rn imports here, while tsc continues
+    # to use the real package declarations. Remote OpenAI-compatible completion
+    # never needs the native llama.cpp runtime.
     shim_dir = root / "src/shims"
     shim_dir.mkdir(parents=True, exist_ok=True)
     shim = shim_dir / "llamaRnApiOnly.js"
     shim.write_text(
         r"""/**
- * Runtime shim for Root Agent API Edition.
- *
- * The real llama.rn package is intentionally not linked into the Android APK.
- * TypeScript still resolves its declarations from node_modules, while Metro
- * redirects runtime imports here. Remote OpenAI-compatible completion does not
- * require llama.cpp. Any accidental local-model initialization fails with a
- * clear message instead of trying to load a missing native library.
+ * Root Agent API Edition runtime shim for llama.rn.
+ * Local inference is intentionally disabled; remote/API completion remains in
+ * the original OpenAICompletionEngine.
  */
 
 const API_ONLY_MESSAGE =
@@ -95,15 +87,15 @@ const BuildInfo = {
   commit: 'api-only',
 };
 
-// Local-only probes should fail open where callers already have fallbacks.
+// Local-only capability/metadata probes fail open.
 const getBackendDevicesInfo = async () => [];
 const loadLlamaModelInfo = async () => ({});
 
-// Accidental attempts to create a local inference context must be explicit.
+// Any actual attempt to start local inference should fail explicitly.
 const initLlama = async () => disabled('initLlama');
 
-// Some local-only cleanup paths may be reached after migration from an older
-// install. Making cleanup no-op is safer than throwing during app startup.
+// Cleanup/logging calls can safely become no-ops after upgrading from a build
+// that previously contained the native runtime.
 const releaseAllLlama = async () => {};
 const toggleNativeLog = () => {};
 
@@ -116,12 +108,11 @@ const known = {
   toggleNativeLog,
 };
 
-// Keep future upstream local-only imports from crashing at module evaluation.
-// If one is actually invoked, the error states exactly why it is unavailable.
+// Future local-only imports should not crash during module evaluation. If an
+// unknown export is actually invoked, it fails with the API-only explanation.
 const fallback = new Proxy(function apiOnlyDisabledExport() {}, {
-  apply(_target, _thisArg, args) {
-    const name = args && args.length ? String(args[0]) : 'llama.rn export';
-    return disabled(name);
+  apply() {
+    return disabled('llama.rn export');
   },
   get(_target, prop) {
     if (prop === 'then') return undefined;
@@ -141,13 +132,13 @@ module.exports = new Proxy(known, {
         encoding="utf-8",
     )
 
-    # Metro runtime alias. Keep the upstream transformer/resolver behavior and
-    # only intercept the exact llama.rn module name.
+    # Keep upstream Metro behavior and intercept only the exact llama.rn module.
     metro = root / "metro.config.js"
     replace_once(
         metro,
         "const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');\n",
-        "const path = require('path');\nconst {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');\n",
+        "const path = require('path');\n"
+        "const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');\n",
         "Metro path import",
     )
     replace_once(
@@ -167,16 +158,18 @@ module.exports = new Proxy(known, {
         "Metro llama.rn alias",
     )
 
-    # ------------------------------------------------------------------
-    # 3) Keep ModelStore for remote/API sessions, but stop advertising local
-    #    GGUF/HF models to chat and model-selection surfaces. ServerStore-backed
-    #    remote models continue to use the original OpenAICompletionEngine.
-    # ------------------------------------------------------------------
+    # Keep ModelStore itself because remote models are integrated there, but only
+    # expose ServerStore-backed remote models to selection surfaces.
     model_store = root / "src/store/ModelStore.ts"
     replace_once(
         model_store,
-        "  get displayModels(): Model[] {\n    return [...filterProjectionModels(this.models), ...this.remoteModels];\n  }",
-        "  get displayModels(): Model[] {\n    // Root Agent API Edition exposes only remote/API models.\n    return this.remoteModels;\n  }",
+        "  get displayModels(): Model[] {\n"
+        "    return [...filterProjectionModels(this.models), ...this.remoteModels];\n"
+        "  }",
+        "  get displayModels(): Model[] {\n"
+        "    // Root Agent API Edition exposes only remote/API models.\n"
+        "    return this.remoteModels;\n"
+        "  }",
         "remote-only displayModels",
     )
 
@@ -184,7 +177,7 @@ module.exports = new Proxy(known, {
         model_store,
         r"  get availableModels\(\): Model\[\] \{.*?\n  \}\n\n  isModelAvailable",
         "  get availableModels(): Model[] {\n"
-        "    // Root Agent API Edition: local GGUF inference is intentionally disabled.\n"
+        "    // Root Agent API Edition: local GGUF inference is disabled.\n"
         "    return this.remoteModels;\n"
         "  }\n\n"
         "  isModelAvailable",
@@ -211,7 +204,9 @@ module.exports = new Proxy(known, {
         "remote-only selectModel",
     )
 
-    print("[api-only] applied: arm64-only + llama.rn native removal + remote-only model selection")
+    print(
+        "[api-only] applied: arm64-only + llama.rn native removal + remote-only model selection"
+    )
 
 
 if __name__ == "__main__":
