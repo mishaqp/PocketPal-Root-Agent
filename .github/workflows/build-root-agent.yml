@@ -67,6 +67,9 @@ jobs:
       - name: Apply API-only Android optimization
         run: python3 scripts/apply-api-only-edition.py app
 
+      - name: Apply boot crash recorder and safe start
+        run: python3 scripts/apply-boot-safety.py app
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
