@@ -88,7 +88,7 @@ jobs:
         working-directory: app/android
         run: ./gradlew assembleProdRelease --no-daemon --stacktrace
 
-      - name: Verify and report API-only APK payload
+      - name: Verify and report API Edition APK payload
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -105,16 +105,21 @@ jobs:
               names = [i.filename for i in infos]
 
               forbidden_x86 = [n for n in names if n.startswith('lib/x86_64/')]
-              forbidden_llama = [n for n in names if 'librnllama' in n.lower()]
+              llama_native = [n for n in names if 'librnllama' in n.lower()]
               if forbidden_x86:
                   raise SystemExit(f'API Edition still contains x86_64 native files: {forbidden_x86[:8]}')
-              if forbidden_llama:
-                  raise SystemExit(f'API Edition still contains llama.rn native files: {forbidden_llama[:8]}')
+              if not llama_native:
+                  raise SystemExit(
+                      'Startup-compatible API Edition unexpectedly lost llama.rn native bridge. '
+                      'Do not ship the Metro-shim-only variant until PocketPal local startup paths are refactored.'
+                  )
 
               groups = collections.defaultdict(lambda: [0, 0])
               for info in infos:
                   name = info.filename
-                  if name.startswith('lib/arm64-v8a/libonnxruntime'):
+                  if name.startswith('lib/arm64-v8a/') and 'librnllama' in name.lower():
+                      group = 'arm64 llama.rn startup compatibility'
+                  elif name.startswith('lib/arm64-v8a/libonnxruntime'):
                       group = 'arm64 onnxruntime (TTS)'
                   elif name.startswith('lib/arm64-v8a/'):
                       group = 'arm64 other native'
@@ -139,7 +144,8 @@ jobs:
               f'APK: {apk}',
               f'APK file size: {apk.stat().st_size / mib:.2f} MiB',
               'Gate: arm64-only = PASS',
-              'Gate: llama.rn native payload absent = PASS',
+              f'Gate: llama.rn startup compatibility retained = PASS ({len(llama_native)} native files)',
+              'Local GGUF selection: disabled by ModelStore API-only policy',
               '',
               'Payload groups:',
           ]
