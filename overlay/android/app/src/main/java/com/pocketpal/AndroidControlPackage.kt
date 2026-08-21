@@ -12,6 +12,7 @@ class AndroidControlPackage : TurboReactPackage() {
       AndroidControlModule.NAME -> AndroidControlModule(reactContext)
       TermuxBridgeModule.NAME -> TermuxBridgeModule(reactContext)
       DiagnosticsModule.NAME -> DiagnosticsModule(reactContext)
+      ScheduledAgentModule.NAME -> ScheduledAgentModule(reactContext)
       else -> null
     }
   }
@@ -40,6 +41,15 @@ class AndroidControlPackage : TurboReactPackage() {
         DiagnosticsModule.NAME to ReactModuleInfo(
           DiagnosticsModule.NAME,
           DiagnosticsModule.NAME,
+          false,
+          false,
+          true,
+          false,
+          false
+        ),
+        ScheduledAgentModule.NAME to ReactModuleInfo(
+          ScheduledAgentModule.NAME,
+          ScheduledAgentModule.NAME,
           false,
           false,
           true,
