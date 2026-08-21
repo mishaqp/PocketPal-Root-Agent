@@ -1,0 +1,88 @@
+diff --git a/src/api/openai.ts b/src/api/openai.ts
+--- a/src/api/openai.ts
++++ b/src/api/openai.ts
+@@ -1,6 +1,10 @@
+ import * as RNFS from '@dr.pogodin/react-native-fs';
+ 
+ import {SSEParser} from './sseParser';
++import {
++  parseDsmlToolCalls,
++  stripDsmlToolCallsForDisplay,
++} from './dsmlToolCalls';
+ import {
+   CompletionResult,
+   CompletionStreamData,
+@@ -805,6 +809,7 @@ export async function streamChatCompletion(
+           toolCallsDelta = applyToolCallDelta(toolCallAcc, delta.tool_calls);
+         }
+ 
++        const visibleContent = stripDsmlToolCallsForDisplay(fullContent);
+         if (
+           onToken &&
+           (content ||
+@@ -816,7 +821,7 @@ export async function streamChatCompletion(
+             token: content || reasoningContent,
+             // Pass accumulated content to match llama.rn's callback behavior
+             // (useChatSession replaces message text, not appends)
+-            content: fullContent || undefined,
++            content: visibleContent || undefined,
+             reasoning_content: fullReasoningContent || undefined,
+             tool_calls: toolCallsDelta,
+           });
+@@ -942,9 +947,19 @@ export async function streamChatCompletion(
+       }
+ 
+       // Mirror llama.rn's shape: undefined when no tool_calls were
+-      // observed during the stream.
+-      const finalToolCalls = assembleFinalToolCalls(toolCallAcc);
++      // observed during the stream. DeepSeek V4 can instead return native
++      // DSML markup in message.content through gateways that do not normalize
++      // it into OpenAI tool_calls; parse that as a compatibility fallback.
++      const structuredToolCalls = assembleFinalToolCalls(toolCallAcc);
++      const dsmlToolCalls = structuredToolCalls?.length
++        ? []
++        : parseDsmlToolCalls(fullContent);
++      const finalToolCalls =
++        structuredToolCalls ??
++        (dsmlToolCalls.length > 0 ? dsmlToolCalls : undefined);
++      const finalContent =
++        dsmlToolCalls.length > 0
++          ? stripDsmlToolCallsForDisplay(fullContent)
++          : fullContent;
+ 
+       // Build result
+       if (signal?.aborted) {
+         resolve({
+-          text: fullContent,
+-          content: fullContent,
++          text: finalContent,
++          content: finalContent,
+           reasoning_content: fullReasoningContent || undefined,
+           tool_calls: finalToolCalls,
+           tokens_predicted: tokensPredicted,
+@@ -956,8 +971,8 @@ export async function streamChatCompletion(
+       }
+ 
+       const result: CompletionResult = {
+-        text: fullContent,
+-        content: fullContent,
++        text: finalContent,
++        content: finalContent,
+         reasoning_content: fullReasoningContent || undefined,
+         tool_calls: finalToolCalls,
+         // llama.cpp reports authoritative token counts on `timings`; the server
+diff --git a/src/services/agent/AgentRunner.ts b/src/services/agent/AgentRunner.ts
+--- a/src/services/agent/AgentRunner.ts
++++ b/src/services/agent/AgentRunner.ts
+@@ -12,7 +12,10 @@ import type {
+ } from './AgentRunner.types';
+ import type {TalentResult} from '../talents/types';
+ 
+-export const DEFAULT_MAX_TURNS = 5;
++// Large phone tasks commonly require a chain of many read/action tool rounds.
++// Keep a finite guard against runaway agents, but do not force-finalize normal
++// 10–15 step jobs after only five calls.
++export const DEFAULT_MAX_TURNS = 20;
+ 
+ const BUDGET_EXHAUSTED_NUDGE =
+   '(Tool budget exhausted. Answer now using only the information gathered above; if it is insufficient, say what is missing.)';

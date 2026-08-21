@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   build:
@@ -18,7 +20,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: a-ghorbani/pocketpal-ai
-          # Keep the overlay reproducible. Update this only after rebasing and tests.
           ref: 5e0f72b599886f77ab5b0c5c4074347b6f4a1262
           path: app
           fetch-depth: 1
@@ -31,6 +32,48 @@ jobs:
 
       - name: Apply agent extensions integration
         run: git -C app apply --check ../patches/agent-extensions.patch && git -C app apply ../patches/agent-extensions.patch
+
+      - name: Apply DeepSeek DSML and long-agent fixes
+        run: python3 scripts/apply-dsml-agent-fix.py app
+
+      - name: Make Android, Termux and checkpoints always available
+        run: python3 scripts/apply-always-on-android-tool.py app
+
+      - name: Apply ZeroTermux and Termux integration
+        run: python3 scripts/apply-termux-integration.py app
+
+      - name: Apply resumable task checkpoint lifecycle
+        run: python3 scripts/apply-task-checkpoint.py app
+
+      - name: Apply Root Agent runtime health lifecycle
+        run: python3 scripts/apply-root-agent-runtime.py app
+
+      - name: Apply agent continuity and model persistence
+        run: python3 scripts/apply-agent-continuity.py app
+
+      - name: Apply checkpoint policy and model diagnostics
+        run: python3 scripts/apply-root-agent-hardening.py app
+
+      - name: Fix completed checkpoint progress
+        run: python3 scripts/apply-checkpoint-progress-fix.py app
+
+      - name: Apply in-chat Agent activity panel
+        run: python3 scripts/apply-agent-chat-panel.py app
+
+      - name: Apply Root Agent home UI
+        run: python3 scripts/apply-root-agent-ui.py app
+
+      - name: Apply API-only Android optimization
+        run: python3 scripts/apply-api-only-edition.py app
+
+      - name: Apply boot crash recorder and safe start
+        run: python3 scripts/apply-boot-safety.py app
+
+      - name: Apply scheduled task integration
+        run: python3 scripts/apply-scheduled-agent-runtime.py app
+
+      - name: Apply Multi-Provider API v1
+        run: python3 scripts/apply-multi-provider-api.py app
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -52,6 +95,85 @@ jobs:
       - name: Build release APK
         working-directory: app/android
         run: ./gradlew assembleProdRelease --no-daemon --stacktrace
+
+      - name: Verify and report API Edition APK payload
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import collections
+          import zipfile
+
+          apks = sorted(Path('app/android/app/build/outputs/apk').glob('**/release/*.apk'))
+          if not apks:
+              raise SystemExit('No release APK found for payload verification')
+          apk = apks[0]
+
+          with zipfile.ZipFile(apk) as archive:
+              infos = archive.infolist()
+              names = [i.filename for i in infos]
+
+              forbidden_x86 = [n for n in names if n.startswith('lib/x86_64/')]
+              llama_native = [n for n in names if 'librnllama' in n.lower()]
+              if forbidden_x86:
+                  raise SystemExit(f'API Edition still contains x86_64 native files: {forbidden_x86[:8]}')
+              if not llama_native:
+                  raise SystemExit(
+                      'Startup-compatible API Edition unexpectedly lost llama.rn native bridge. '
+                      'Do not ship the Metro-shim-only variant until PocketPal local startup paths are refactored.'
+                  )
+
+              groups = collections.defaultdict(lambda: [0, 0])
+              for info in infos:
+                  name = info.filename
+                  if name.startswith('lib/arm64-v8a/') and 'librnllama' in name.lower():
+                      group = 'arm64 llama.rn startup compatibility'
+                  elif name.startswith('lib/arm64-v8a/libonnxruntime'):
+                      group = 'arm64 onnxruntime (TTS)'
+                  elif name.startswith('lib/arm64-v8a/'):
+                      group = 'arm64 other native'
+                  elif name == 'assets/index.android.bundle':
+                      group = 'JS bundle'
+                  elif name.startswith('classes') and name.endswith('.dex'):
+                      group = 'DEX'
+                  elif name.startswith('assets/'):
+                      group = 'other assets'
+                  elif name.startswith('res/') or name == 'resources.arsc':
+                      group = 'resources'
+                  else:
+                      group = 'other'
+                  groups[group][0] += info.file_size
+                  groups[group][1] += info.compress_size
+
+              largest = sorted(infos, key=lambda i: i.file_size, reverse=True)[:25]
+
+          mib = 1024 * 1024
+          lines = [
+              'Root Agent API Edition APK payload report',
+              f'APK: {apk}',
+              f'APK file size: {apk.stat().st_size / mib:.2f} MiB',
+              'Gate: arm64-only = PASS',
+              f'Gate: llama.rn startup compatibility retained = PASS ({len(llama_native)} native files)',
+              'Local GGUF selection: disabled by ModelStore API-only policy',
+              '',
+              'Payload groups:',
+          ]
+          for group, (raw, compressed) in sorted(groups.items(), key=lambda item: item[1][1], reverse=True):
+              lines.append(f'- {group}: raw={raw / mib:.2f} MiB compressed={compressed / mib:.2f} MiB')
+          lines += ['', 'Largest entries:']
+          for info in largest:
+              lines.append(f'- {info.file_size / mib:.2f} MiB raw / {info.compress_size / mib:.2f} MiB compressed  {info.filename}')
+
+          report = '\n'.join(lines) + '\n'
+          Path('apk-size-report.txt').write_text(report, encoding='utf-8')
+          print(report)
+          PY
+
+      - name: Upload APK size report
+        uses: actions/upload-artifact@v4
+        with:
+          name: PocketPal-Root-Agent-size-report
+          path: apk-size-report.txt
+          if-no-files-found: error
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

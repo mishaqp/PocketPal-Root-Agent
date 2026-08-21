@@ -130,11 +130,16 @@ class ExtensionStore {
       new Set(
         (plugin.talents ?? [])
           .map(talent => cleanId(talent))
-          .filter(talent => talent !== 'android_system'),
+          .filter(
+            talent =>
+              talent !== 'android_system' &&
+              talent !== 'termux' &&
+              talent !== 'task_checkpoint',
+          ),
       ),
     ).slice(0, 12);
     if (talents.length === 0) {
-      throw new Error('Plugin requires at least one non-root talent');
+      throw new Error('Plugin requires at least one non-privileged talent');
     }
     return {
       id: cleanId(plugin.id || name),

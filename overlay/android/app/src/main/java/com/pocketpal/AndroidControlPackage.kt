@@ -8,7 +8,13 @@ import com.facebook.react.module.model.ReactModuleInfoProvider
 
 class AndroidControlPackage : TurboReactPackage() {
   override fun getModule(name: String, reactContext: ReactApplicationContext): NativeModule? {
-    return if (name == AndroidControlModule.NAME) AndroidControlModule(reactContext) else null
+    return when (name) {
+      AndroidControlModule.NAME -> AndroidControlModule(reactContext)
+      TermuxBridgeModule.NAME -> TermuxBridgeModule(reactContext)
+      DiagnosticsModule.NAME -> DiagnosticsModule(reactContext)
+      ScheduledAgentModule.NAME -> ScheduledAgentModule(reactContext)
+      else -> null
+    }
   }
 
   override fun getReactModuleInfoProvider(): ReactModuleInfoProvider {
@@ -17,6 +23,33 @@ class AndroidControlPackage : TurboReactPackage() {
         AndroidControlModule.NAME to ReactModuleInfo(
           AndroidControlModule.NAME,
           AndroidControlModule.NAME,
+          false,
+          false,
+          true,
+          false,
+          false
+        ),
+        TermuxBridgeModule.NAME to ReactModuleInfo(
+          TermuxBridgeModule.NAME,
+          TermuxBridgeModule.NAME,
+          false,
+          false,
+          true,
+          false,
+          false
+        ),
+        DiagnosticsModule.NAME to ReactModuleInfo(
+          DiagnosticsModule.NAME,
+          DiagnosticsModule.NAME,
+          false,
+          false,
+          true,
+          false,
+          false
+        ),
+        ScheduledAgentModule.NAME to ReactModuleInfo(
+          ScheduledAgentModule.NAME,
+          ScheduledAgentModule.NAME,
           false,
           false,
           true,
