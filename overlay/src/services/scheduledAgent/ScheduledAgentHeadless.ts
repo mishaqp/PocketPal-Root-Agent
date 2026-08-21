@@ -26,6 +26,7 @@ const READ_ONLY_ANDROID_ACTIONS = new Set([
 
 const READ_ONLY_TERMUX_ACTIONS = new Set(['status', 'probe', 'linux_detect']);
 const BASE_TALENTS = ['android_system', 'termux', 'calculate', 'datetime'];
+const DUPLICATE_RUN_GUARD_MS = 20 * 60_000;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -124,6 +125,15 @@ export async function runScheduledAgentHeadless(data: {
   await scheduledAgentStore.ensureHydrated();
   const task = await scheduledAgentStore.get(taskId);
   if (!task || !task.enabled) {
+    return;
+  }
+
+  if (
+    task.status === 'running' &&
+    task.lastRunAt &&
+    Date.now() - task.lastRunAt < DUPLICATE_RUN_GUARD_MS
+  ) {
+    console.warn(`[scheduled-agent] duplicate run ignored for ${taskId}`);
     return;
   }
 

@@ -17,6 +17,7 @@ needle = "import {OnboardingStack} from './src/screens/OnboardingScreens';\n"
 addition = (
     needle
     + "import {RootAgentHomeScreen} from './src/screens/RootAgentHomeScreen';\n"
+    + "import {ScheduledTasksScreen} from './src/screens/ScheduledTasksScreen';\n"
     + "import {DiagnosticsScreen} from './src/screens/DiagnosticsScreen';\n"
 )
 if addition not in app:
@@ -24,8 +25,8 @@ if addition not in app:
         raise SystemExit("App.tsx onboarding import anchor not found")
     app = app.replace(needle, addition, 1)
 
-# Diagnostics are opt-in, not the app landing page. Keep Chat as the explicit
-# default so neither Agent Home nor log capture UI pops up on every launch.
+# Diagnostics and scheduled tasks are opt-in, not the app landing page. Keep
+# Chat as the explicit default so Root Agent UI never replaces normal startup.
 needle = """                        <Drawer.Navigator
                           screenOptions={{
 """
@@ -38,7 +39,8 @@ if replacement not in app:
         raise SystemExit("App.tsx Drawer.Navigator anchor not found")
     app = app.replace(needle, replacement, 1)
 
-# Register Agent Home + Logs while preserving existing PocketPal screens.
+# Register Agent Home + Scheduled Tasks + Logs while preserving existing
+# PocketPal screens.
 needle = """                          <Drawer.Screen
                             name={ROUTES.CHAT}
                             component={gestureHandlerRootHOC(ChatScreen)}
@@ -49,6 +51,14 @@ addition = """                          <Drawer.Screen
                             options={{
                               headerStyle: styles.headerWithoutDivider,
                               title: 'Root Agent',
+                            }}
+                          />
+                          <Drawer.Screen
+                            name=\"RootAgentTasks\"
+                            component={gestureHandlerRootHOC(ScheduledTasksScreen)}
+                            options={{
+                              headerStyle: styles.headerWithoutDivider,
+                              title: 'Задачи агента',
                             }}
                           />
                           <Drawer.Screen
@@ -68,7 +78,8 @@ if addition not in app:
         raise SystemExit("App.tsx Chat drawer anchor not found")
     app = app.replace(needle, addition, 1)
 
-# Add dedicated opt-in Agent + Logs items without replacing SidebarContent.
+# Add dedicated opt-in Agent + Tasks + Logs items without replacing
+# SidebarContent.
 needle = """          <Drawer.Section showDivider={false}>
             <Drawer.Item
               label={l10n.components.sidebarContent.menuItems.chat}
@@ -80,6 +91,13 @@ addition = """          <Drawer.Section showDivider={false}>
               onPress={() => props.navigation.navigate('RootAgent')}
               style={styles.menuDrawerItem}
               testID=\"drawer-item-root-agent\"
+            />
+            <Drawer.Item
+              label=\"Задачи\"
+              icon=\"calendar-clock\"
+              onPress={() => props.navigation.navigate('RootAgentTasks')}
+              style={styles.menuDrawerItem}
+              testID=\"drawer-item-root-agent-tasks\"
             />
             <Drawer.Item
               label=\"Логи агента\"
@@ -117,4 +135,4 @@ if new not in runtime:
 app_path.write_text(app, encoding="utf-8")
 sidebar_path.write_text(sidebar, encoding="utf-8")
 runtime_path.write_text(runtime, encoding="utf-8")
-print("Applied opt-in Root Agent + diagnostics navigation and Linux detection fix")
+print("Applied opt-in Root Agent + scheduled tasks + diagnostics navigation and Linux detection fix")

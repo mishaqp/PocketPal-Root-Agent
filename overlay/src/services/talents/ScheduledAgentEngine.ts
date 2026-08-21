@@ -24,6 +24,7 @@ export class ScheduledAgentEngine implements TalentEngine {
       '- allowReboot must remain false unless the user explicitly requested a scheduled reboot in the current message.',
       '- Use a future local ISO date-time for fixedTime, or countdownMinutes for a relative delay.',
       '- repeatDaily means the same local clock time every day and is restored after device reboot/app update.',
+      '- list includes recent execution history so you can report real previous outcomes.',
       '- Do not claim a task was scheduled until this tool returns success.',
     ].join('\n');
   }
@@ -55,6 +56,7 @@ export class ScheduledAgentEngine implements TalentEngine {
             nextRunAt: task.nextRunAt,
             lastResult: task.lastResult,
             lastError: task.lastError,
+            history: (task.history ?? []).slice(0, 10),
           })),
         );
       }
